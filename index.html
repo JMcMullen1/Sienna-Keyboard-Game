@@ -417,9 +417,12 @@
     const color = palette[Math.abs(hashStr(key)) % palette.length];
     document.body.style.background = color;
 
-    // Always center the item — guarantees it's on-screen regardless of size.
     const wrap = document.createElement('div');
     wrap.className = 'item';
+    // Render hidden first so we can measure the real size, then position safely.
+    wrap.style.visibility = 'hidden';
+    wrap.style.left = '50%';
+    wrap.style.top = '50%';
 
     const inner = document.createElement('div');
     inner.className = 'pop';
@@ -435,10 +438,41 @@
     wrap.appendChild(inner);
     stage.appendChild(wrap);
 
+    // Measure intrinsic size (scrollWidth/Height ignore transform, so animation
+    // scaling doesn't fool us). Pad by the peak animation scale (1.15) plus a
+    // safety margin so the bouncing item never clips the edge.
+    const peakScale = 1.18;
+    const margin = 24;
+    const w = inner.scrollWidth  * peakScale;
+    const h = inner.scrollHeight * peakScale;
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    // Center is at left/top in pixels; allowed range keeps the whole element on-screen.
+    const minX = w / 2 + margin;
+    const maxX = vw - w / 2 - margin;
+    const minY = h / 2 + margin;
+    const maxY = vh - h / 2 - margin;
+
+    let cx, cy;
+    if (maxX <= minX || maxY <= minY) {
+      // Element bigger than viewport — fall back to center.
+      cx = vw / 2;
+      cy = vh / 2;
+    } else {
+      cx = minX + Math.random() * (maxX - minX);
+      cy = minY + Math.random() * (maxY - minY);
+    }
+
+    wrap.style.left = cx + 'px';
+    wrap.style.top  = cy + 'px';
+    wrap.style.visibility = 'visible';
+
     setTimeout(() => wrap.remove(), 1900);
 
-    // Confetti bursts from center
-    burstConfetti(50, 50);
+    // Confetti bursts from the item's actual location
+    burstConfetti((cx / vw) * 100, (cy / vh) * 100);
   }
 
   function burstConfetti(xPct, yPct) {
