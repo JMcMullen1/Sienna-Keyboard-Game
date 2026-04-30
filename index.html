@@ -29,28 +29,45 @@
     flex-direction: column;
     pointer-events: none;
   }
+  /* Outer wrapper handles positioning only — never animated, so transform centering is preserved. */
   .item {
     position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 92vw;
+    max-height: 92vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  /* Inner element gets the pop animation. */
+  .item .pop {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     animation: pop 1.8s ease-out forwards;
     text-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    max-width: 92vw;
   }
   .item .emoji {
-    font-size: clamp(160px, 28vw, 380px);
+    font-size: clamp(140px, 24vw, 340px);
     line-height: 1;
     filter: drop-shadow(0 10px 25px rgba(0,0,0,0.35));
   }
   .item .label {
     margin-top: 20px;
-    font-size: clamp(40px, 6vw, 90px);
+    font-size: clamp(36px, 5.5vw, 84px);
     font-weight: 900;
     color: white;
     -webkit-text-stroke: 3px #222;
     letter-spacing: 2px;
     text-transform: uppercase;
+    text-align: center;
+    max-width: 90vw;
+    word-wrap: break-word;
   }
   @keyframes pop {
     0%   { transform: scale(0.2) rotate(-25deg); opacity: 0; }
@@ -400,14 +417,12 @@
     const color = palette[Math.abs(hashStr(key)) % palette.length];
     document.body.style.background = color;
 
-    // Item element
+    // Always center the item — guarantees it's on-screen regardless of size.
     const wrap = document.createElement('div');
     wrap.className = 'item';
-    const x = 15 + Math.random() * 70;
-    const y = 20 + Math.random() * 55;
-    wrap.style.left = x + '%';
-    wrap.style.top = y + '%';
-    wrap.style.transform = 'translate(-50%, -50%)';
+
+    const inner = document.createElement('div');
+    inner.className = 'pop';
 
     const e = document.createElement('div');
     e.className = 'emoji';
@@ -415,15 +430,15 @@
     const l = document.createElement('div');
     l.className = 'label';
     l.textContent = item.n;
-    wrap.appendChild(e);
-    wrap.appendChild(l);
+    inner.appendChild(e);
+    inner.appendChild(l);
+    wrap.appendChild(inner);
     stage.appendChild(wrap);
 
-    // Cleanup
     setTimeout(() => wrap.remove(), 1900);
 
-    // Confetti
-    burstConfetti(x, y);
+    // Confetti bursts from center
+    burstConfetti(50, 50);
   }
 
   function burstConfetti(xPct, yPct) {
