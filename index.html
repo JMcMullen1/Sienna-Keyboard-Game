@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sienna's Keyboard Game</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Comic Sans MS', 'Chalkboard SE', system-ui, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: none;
+  }
+  body {
+    background: #1a1a2e;
+    transition: background 0.4s ease;
+    position: relative;
+  }
+  #stage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    pointer-events: none;
+  }
+  .item {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    animation: pop 1.8s ease-out forwards;
+    text-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+  .item .emoji {
+    font-size: clamp(160px, 28vw, 380px);
+    line-height: 1;
+    filter: drop-shadow(0 10px 25px rgba(0,0,0,0.35));
+  }
+  .item .label {
+    margin-top: 20px;
+    font-size: clamp(40px, 6vw, 90px);
+    font-weight: 900;
+    color: white;
+    -webkit-text-stroke: 3px #222;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  @keyframes pop {
+    0%   { transform: scale(0.2) rotate(-25deg); opacity: 0; }
+    20%  { transform: scale(1.15) rotate(8deg); opacity: 1; }
+    40%  { transform: scale(0.95) rotate(-3deg); }
+    60%  { transform: scale(1.05) rotate(2deg); }
+    80%  { transform: scale(1) rotate(0deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0deg); opacity: 0; }
+  }
+  .confetti {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    pointer-events: none;
+    animation: fall 1.6s ease-out forwards;
+  }
+  @keyframes fall {
+    0%   { transform: translate(0,0) rotate(0deg); opacity: 1; }
+    100% { transform: var(--end) rotate(720deg); opacity: 0; }
+  }
+  #intro {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #ff9a9e, #fad0c4, #fbc2eb, #a18cd1);
+    background-size: 400% 400%;
+    animation: gradient 8s ease infinite;
+    z-index: 1000;
+    text-align: center;
+    padding: 30px;
+    cursor: pointer;
+  }
+  @keyframes gradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  #intro h1 {
+    font-size: clamp(48px, 9vw, 120px);
+    color: white;
+    -webkit-text-stroke: 4px #222;
+    margin-bottom: 20px;
+    text-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  }
+  #intro p {
+    font-size: clamp(20px, 3vw, 36px);
+    color: white;
+    -webkit-text-stroke: 2px #444;
+    margin: 8px 0;
+  }
+  #intro .big {
+    font-size: clamp(80px, 14vw, 200px);
+    margin: 20px 0;
+    animation: wiggle 1.2s ease-in-out infinite;
+  }
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(-8deg) scale(1); }
+    50% { transform: rotate(8deg) scale(1.1); }
+  }
+  #intro button {
+    margin-top: 30px;
+    padding: 20px 60px;
+    font-size: clamp(24px, 3.5vw, 42px);
+    font-weight: 900;
+    border: 4px solid #222;
+    border-radius: 50px;
+    background: #fff200;
+    color: #222;
+    cursor: pointer;
+    font-family: inherit;
+    box-shadow: 0 8px 0 #222;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  #intro button:hover { transform: translateY(-2px); box-shadow: 0 10px 0 #222; }
+  #intro button:active { transform: translateY(4px); box-shadow: 0 4px 0 #222; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+  <div id="intro">
+    <div class="big">🎹🐶🍎</div>
+    <h1>Sienna's Keyboard Game</h1>
+    <p>Press any key to play!</p>
+    <p>Letters, numbers, arrows — they all do something fun.</p>
+    <button id="startBtn">Start Playing</button>
+    <p style="margin-top:30px; font-size: clamp(14px, 2vw, 20px);">Tip: press F11 for fullscreen 🎉</p>
+  </div>
+
+  <div id="stage"></div>
+
+<script>
+(() => {
+  // ---------- Mapping each key to one or more items ----------
+  // Each item = { e: emoji, n: name, c: backgroundColor }
+  const palette = [
+    '#FF6B6B','#4ECDC4','#FFD93D','#6BCB77','#4D96FF','#FF8FB1',
+    '#9B5DE5','#F15BB5','#00BBF9','#00F5D4','#FB8500','#FFB703',
+    '#8338EC','#3A86FF','#06D6A0','#EF476F','#118AB2','#073B4C',
+    '#FFADAD','#A0C4FF','#BDB2FF','#FFC6FF','#CAFFBF','#FFD6A5'
+  ];
+
+  const map = {
+    a: [{e:'🍎', n:'Apple'}, {e:'🐜', n:'Ant'}, {e:'🥑', n:'Avocado'}, {e:'✈️', n:'Airplane'}],
+    b: [{e:'🐻', n:'Bear'}, {e:'🍌', n:'Banana'}, {e:'⚽', n:'Ball'}, {e:'🦋', n:'Butterfly'}, {e:'🐝', n:'Bee'}],
+    c: [{e:'🐱', n:'Cat'}, {e:'🥕', n:'Carrot'}, {e:'☁️', n:'Cloud'}, {e:'🍪', n:'Cookie'}, {e:'🚗', n:'Car'}],
+    d: [{e:'🐶', n:'Dog'}, {e:'🦆', n:'Duck'}, {e:'🍩', n:'Donut'}, {e:'🐬', n:'Dolphin'}],
+    e: [{e:'🐘', n:'Elephant'}, {e:'🥚', n:'Egg'}, {e:'👁️', n:'Eye'}, {e:'🦅', n:'Eagle'}],
+    f: [{e:'🐸', n:'Frog'}, {e:'🐟', n:'Fish'}, {e:'🌸', n:'Flower'}, {e:'🦊', n:'Fox'}, {e:'🍟', n:'Fries'}],
+    g: [{e:'🦒', n:'Giraffe'}, {e:'🍇', n:'Grapes'}, {e:'🎁', n:'Gift'}, {e:'👻', n:'Ghost'}],
+    h: [{e:'🐴', n:'Horse'}, {e:'🏠', n:'House'}, {e:'🎩', n:'Hat'}, {e:'🍯', n:'Honey'}, {e:'❤️', n:'Heart'}],
+    i: [{e:'🍦', n:'Ice cream'}, {e:'🧊', n:'Ice'}, {e:'🐛', n:'Insect'}],
+    j: [{e:'🤹', n:'Juggler'}, {e:'🫙', n:'Jar'}, {e:'🃏', n:'Joker'}],
+    k: [{e:'🪁', n:'Kite'}, {e:'🔑', n:'Key'}, {e:'🥝', n:'Kiwi'}, {e:'🦘', n:'Kangaroo'}],
+    l: [{e:'🦁', n:'Lion'}, {e:'🍋', n:'Lemon'}, {e:'🍃', n:'Leaf'}, {e:'🐞', n:'Ladybug'}],
+    m: [{e:'🐵', n:'Monkey'}, {e:'🌙', n:'Moon'}, {e:'🍈', n:'Melon'}, {e:'🍄', n:'Mushroom'}, {e:'🥛', n:'Milk'}],
+    n: [{e:'👃', n:'Nose'}, {e:'🌃', n:'Night'}, {e:'🪺', n:'Nest'}],
+    o: [{e:'🐙', n:'Octopus'}, {e:'🍊', n:'Orange'}, {e:'🦉', n:'Owl'}],
+    p: [{e:'🐷', n:'Pig'}, {e:'🍕', n:'Pizza'}, {e:'🐼', n:'Panda'}, {e:'🍍', n:'Pineapple'}, {e:'🐧', n:'Penguin'}],
+    q: [{e:'👸', n:'Queen'}, {e:'❓', n:'Question'}, {e:'🪶', n:'Quill'}],
+    r: [{e:'🐰', n:'Rabbit'}, {e:'🌈', n:'Rainbow'}, {e:'🌹', n:'Rose'}, {e:'🚀', n:'Rocket'}],
+    s: [{e:'🐍', n:'Snake'}, {e:'☀️', n:'Sun'}, {e:'⭐', n:'Star'}, {e:'🍓', n:'Strawberry'}, {e:'🦈', n:'Shark'}],
+    t: [{e:'🐯', n:'Tiger'}, {e:'🌳', n:'Tree'}, {e:'🚂', n:'Train'}, {e:'🍅', n:'Tomato'}, {e:'🐢', n:'Turtle'}],
+    u: [{e:'☂️', n:'Umbrella'}, {e:'🦄', n:'Unicorn'}, {e:'🛸', n:'UFO'}],
+    v: [{e:'🎻', n:'Violin'}, {e:'🌋', n:'Volcano'}, {e:'🚐', n:'Van'}],
+    w: [{e:'🍉', n:'Watermelon'}, {e:'🐺', n:'Wolf'}, {e:'🐳', n:'Whale'}, {e:'🪟', n:'Window'}],
+    x: [{e:'❌', n:'X mark'}, {e:'🎄', n:'Xmas tree'}, {e:'🎷', n:'Xylophone'}],
+    y: [{e:'🟡', n:'Yellow'}, {e:'🪀', n:'Yo-yo'}, {e:'🧶', n:'Yarn'}],
+    z: [{e:'🦓', n:'Zebra'}, {e:'⚡', n:'Zap'}, {e:'0️⃣', n:'Zero'}],
+
+    '1': [{e:'1️⃣', n:'One'}, {e:'🐶', n:'One dog'}],
+    '2': [{e:'2️⃣', n:'Two'}, {e:'🐱🐱', n:'Two cats'}],
+    '3': [{e:'3️⃣', n:'Three'}, {e:'🐰🐰🐰', n:'Three rabbits'}],
+    '4': [{e:'4️⃣', n:'Four'}, {e:'🍎🍎🍎🍎', n:'Four apples'}],
+    '5': [{e:'5️⃣', n:'Five'}, {e:'⭐⭐⭐⭐⭐', n:'Five stars'}],
+    '6': [{e:'6️⃣', n:'Six'}, {e:'🐝🐝🐝🐝🐝🐝', n:'Six bees'}],
+    '7': [{e:'7️⃣', n:'Seven'}, {e:'🌈', n:'Seven colors'}],
+    '8': [{e:'8️⃣', n:'Eight'}, {e:'🐙', n:'Eight arms'}],
+    '9': [{e:'9️⃣', n:'Nine'}, {e:'🎈', n:'Nine'}],
+    '0': [{e:'0️⃣', n:'Zero'}, {e:'🥯', n:'Zero'}],
+
+    // Punctuation & symbols
+    ' ':       [{e:'🎉', n:'Yay!'}, {e:'✨', n:'Sparkle'}, {e:'🎊', n:'Party'}],
+    'Enter':   [{e:'🌈', n:'Rainbow'}, {e:'👏', n:'Clap'}],
+    'Backspace':[{e:'💨', n:'Whoosh'}, {e:'🌀', n:'Swirl'}],
+    'Tab':     [{e:'🎵', n:'Music'}, {e:'🎶', n:'Notes'}],
+    'Escape':  [{e:'😊', n:'Happy face'}, {e:'🤗', n:'Hug'}],
+    'Shift':   [{e:'💎', n:'Diamond'}, {e:'✨', n:'Shiny'}],
+    'CapsLock':[{e:'👑', n:'Crown'}],
+    'Control': [{e:'🎮', n:'Game'}],
+    'Alt':     [{e:'🛎️', n:'Bell'}],
+    'Meta':    [{e:'🌟', n:'Super star'}],
+    'ContextMenu':[{e:'📋', n:'Menu'}],
+    'Delete':  [{e:'🧹', n:'Sweep'}],
+    'Insert':  [{e:'📥', n:'Insert'}],
+    'Home':    [{e:'🏡', n:'Home'}],
+    'End':     [{e:'🏁', n:'Finish'}],
+    'PageUp':  [{e:'⬆️', n:'Up up!'}],
+    'PageDown':[{e:'⬇️', n:'Down down!'}],
+    'ArrowUp':   [{e:'⬆️', n:'Up'}, {e:'🚀', n:'Up'}],
+    'ArrowDown': [{e:'⬇️', n:'Down'}, {e:'🪂', n:'Down'}],
+    'ArrowLeft': [{e:'⬅️', n:'Left'}, {e:'👈', n:'Left'}],
+    'ArrowRight':[{e:'➡️', n:'Right'}, {e:'👉', n:'Right'}],
+
+    // Function keys → colors and shapes
+    'F1':  [{e:'🔴', n:'Red'}],
+    'F2':  [{e:'🟠', n:'Orange'}],
+    'F3':  [{e:'🟡', n:'Yellow'}],
+    'F4':  [{e:'🟢', n:'Green'}],
+    'F5':  [{e:'🔵', n:'Blue'}],
+    'F6':  [{e:'🟣', n:'Purple'}],
+    'F7':  [{e:'🟤', n:'Brown'}],
+    'F8':  [{e:'⚫', n:'Black'}],
+    'F9':  [{e:'⚪', n:'White'}],
+    'F10': [{e:'🩷', n:'Pink'}],
+    'F11': [{e:'🟦', n:'Square'}],
+    'F12': [{e:'🔺', n:'Triangle'}],
+
+    // Symbols / punctuation
+    '`': [{e:'🌽', n:'Corn'}],
+    '~': [{e:'🌊', n:'Wave'}],
+    '!': [{e:'❗', n:'Wow!'}],
+    '@': [{e:'📧', n:'Email'}],
+    '#': [{e:'🎼', n:'Sharp'}],
+    '$': [{e:'💰', n:'Money'}],
+    '%': [{e:'💯', n:'Hundred'}],
+    '^': [{e:'🔼', n:'Up arrow'}],
+    '&': [{e:'🤝', n:'And'}],
+    '*': [{e:'⭐', n:'Star'}, {e:'✨', n:'Sparkle'}],
+    '(': [{e:'🌜', n:'Moon'}],
+    ')': [{e:'🌛', n:'Moon'}],
+    '-': [{e:'➖', n:'Minus'}],
+    '_': [{e:'➖', n:'Line'}],
+    '=': [{e:'⚖️', n:'Equal'}],
+    '+': [{e:'➕', n:'Plus'}],
+    '[': [{e:'📦', n:'Box'}],
+    ']': [{e:'🎁', n:'Gift'}],
+    '{': [{e:'🍱', n:'Lunch'}],
+    '}': [{e:'🎒', n:'Bag'}],
+    '\\': [{e:'🪄', n:'Magic'}],
+    '|':  [{e:'🥖', n:'Bread'}],
+    ';':  [{e:'😉', n:'Wink'}],
+    ':':  [{e:'🙂', n:'Smile'}],
+    "'":  [{e:'💧', n:'Drop'}],
+    '"':  [{e:'💬', n:'Talk'}],
+    ',':  [{e:'🐌', n:'Snail'}],
+    '.':  [{e:'⚽', n:'Ball'}],
+    '<':  [{e:'◀️', n:'Less'}],
+    '>':  [{e:'▶️', n:'More'}],
+    '/':  [{e:'🛹', n:'Slide'}],
+    '?':  [{e:'❓', n:'Question'}]
+  };
+
+  const fallbacks = [
+    {e:'🎈', n:'Balloon'}, {e:'🌟', n:'Star'}, {e:'🎀', n:'Bow'},
+    {e:'🪅', n:'Pinata'}, {e:'🧸', n:'Teddy'}, {e:'🎠', n:'Carousel'}
+  ];
+
+  // ---------- Audio (Web Audio + Speech) ----------
+  let audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){}
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function tone(freq, dur=0.25, type='sine', vol=0.18) {
+    if (!audioCtx) return;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    g.gain.value = 0;
+    g.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start();
+    o.stop(audioCtx.currentTime + dur + 0.05);
+  }
+
+  function playHappySound(seed) {
+    ensureAudio();
+    if (!audioCtx) return;
+    const scale = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25, 587.33, 659.25];
+    const i = Math.abs(seed) % scale.length;
+    const j = (Math.abs(seed) + 2) % scale.length;
+    const types = ['sine','triangle','square'];
+    const t = types[Math.abs(seed) % types.length];
+    tone(scale[i], 0.22, t, 0.14);
+    setTimeout(() => tone(scale[j], 0.18, t, 0.12), 90);
+  }
+
+  let voices = [];
+  function loadVoices() {
+    voices = speechSynthesis.getVoices();
+  }
+  if ('speechSynthesis' in window) {
+    loadVoices();
+    speechSynthesis.onvoiceschanged = loadVoices;
+  }
+
+  function speak(text) {
+    if (!('speechSynthesis' in window)) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.95;
+      u.pitch = 1.4;
+      u.volume = 1;
+      const preferred = voices.find(v => /female|kid|child|samantha|karen|tessa|moira/i.test(v.name) && /en/i.test(v.lang))
+                     || voices.find(v => /en[-_]?(US|GB|AU)/i.test(v.lang))
+                     || voices.find(v => /^en/i.test(v.lang));
+      if (preferred) u.voice = preferred;
+      speechSynthesis.speak(u);
+    } catch(e) {}
+  }
+
+  // ---------- Visuals ----------
+  const stage = document.getElementById('stage');
+
+  function hashStr(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = ((h<<5)-h) + s.charCodeAt(i);
+    return h;
+  }
+
+  function pickItem(key, evt) {
+    let list = map[key];
+    if (!list) list = map[key.toLowerCase()];
+    if (!list) list = fallbacks;
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
+  function showItem(item, key) {
+    // Background color
+    const color = palette[Math.abs(hashStr(key)) % palette.length];
+    document.body.style.background = color;
+
+    // Item element
+    const wrap = document.createElement('div');
+    wrap.className = 'item';
+    const x = 15 + Math.random() * 70;
+    const y = 20 + Math.random() * 55;
+    wrap.style.left = x + '%';
+    wrap.style.top = y + '%';
+    wrap.style.transform = 'translate(-50%, -50%)';
+
+    const e = document.createElement('div');
+    e.className = 'emoji';
+    e.textContent = item.e;
+    const l = document.createElement('div');
+    l.className = 'label';
+    l.textContent = item.n;
+    wrap.appendChild(e);
+    wrap.appendChild(l);
+    stage.appendChild(wrap);
+
+    // Cleanup
+    setTimeout(() => wrap.remove(), 1900);
+
+    // Confetti
+    burstConfetti(x, y);
+  }
+
+  function burstConfetti(xPct, yPct) {
+    const colors = ['#FF6B6B','#FFD93D','#6BCB77','#4D96FF','#FF8FB1','#9B5DE5','#00F5D4','#FB8500'];
+    const count = 22;
+    const cx = (xPct/100) * window.innerWidth;
+    const cy = (yPct/100) * window.innerHeight;
+    for (let i = 0; i < count; i++) {
+      const c = document.createElement('div');
+      c.className = 'confetti';
+      c.style.left = cx + 'px';
+      c.style.top = cy + 'px';
+      c.style.background = colors[i % colors.length];
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 150 + Math.random() * 250;
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist + 200;
+      c.style.setProperty('--end', `translate(${dx}px, ${dy}px)`);
+      c.style.transform = 'translate(0,0)';
+      document.body.appendChild(c);
+      setTimeout(() => c.remove(), 1700);
+    }
+  }
+
+  // ---------- Key handler ----------
+  let lastTime = 0;
+  function handleKey(evt) {
+    // throttle absurd autorepeat
+    const now = performance.now();
+    if (now - lastTime < 60) return;
+    lastTime = now;
+
+    let key = evt.key;
+    if (!key) return;
+
+    // Normalize
+    if (key.length === 1) {
+      // letters/digits/punctuation
+    } else {
+      // named keys: ArrowUp, F1, etc — leave as-is
+    }
+
+    // Skip pure modifier holds we already render via key event
+    // (Shift/Ctrl/Alt/Meta produce key events on press in most browsers)
+
+    const item = pickItem(key, evt);
+    showItem(item, key);
+    speak(item.n);
+    playHappySound(hashStr(key));
+  }
+
+  // ---------- Boot ----------
+  const intro = document.getElementById('intro');
+  const startBtn = document.getElementById('startBtn');
+
+  function start() {
+    ensureAudio();
+    // Warm up speech (some browsers need a user-initiated utterance)
+    try {
+      const u = new SpeechSynthesisUtterance("Let's play!");
+      u.rate = 1; u.pitch = 1.3;
+      speechSynthesis.speak(u);
+    } catch(e) {}
+    intro.classList.add('hidden');
+    document.body.focus();
+  }
+
+  startBtn.addEventListener('click', start);
+  intro.addEventListener('click', start);
+
+  window.addEventListener('keydown', (e) => {
+    // Allow F11 (fullscreen), F5 (reload), and Ctrl/Cmd combos through.
+    const isCombo = e.ctrlKey || e.metaKey;
+    const passthrough = ['F5','F11','F12'];
+    if (!isCombo && !passthrough.includes(e.key)) {
+      e.preventDefault();
+    }
+    if (intro.classList.contains('hidden')) {
+      handleKey(e);
+    } else {
+      // First key also starts the game
+      start();
+      handleKey(e);
+    }
+  });
+
+  // Prevent right-click menu (toddler-proof)
+  window.addEventListener('contextmenu', e => e.preventDefault());
+
+  // Resume audio on any interaction
+  window.addEventListener('pointerdown', ensureAudio);
+  window.addEventListener('touchstart', ensureAudio, { passive: true });
+})();
+</script>
+</body>
+</html>
